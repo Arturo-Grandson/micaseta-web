@@ -270,13 +270,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
-  Future<void> _logout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('boothId');
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {

@@ -81,13 +81,6 @@ class ProductService {
     });
     return response != null;
   }
-
-  Future<void> _logout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('boothId');
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-  }
 }
 
 class MainLayout extends StatelessWidget {

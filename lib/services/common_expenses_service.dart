@@ -3,7 +3,6 @@ import 'package:micaseta_web/services/api_service.dart';
 
 class CommonExpensesService {
   final ApiService _apiService = ApiService();
-  final String _baseUrl = 'http://localhost:3000';
 
   Future<bool> addCommonExpense(Map<String, dynamic> commonExpenseData) async {
     final response =

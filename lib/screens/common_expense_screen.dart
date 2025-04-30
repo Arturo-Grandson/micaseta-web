@@ -213,7 +213,7 @@ class _CommonExpenseScreenState extends State<CommonExpenseScreen> {
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: Icon(Icons.monetization_on, color: Colors.white),
+                  child: const Icon(Icons.monetization_on, color: Colors.white),
                 ),
                 title: Text(expense.description),
                 trailing: Row(
