@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:micaseta_web/screens/common_expense_screen.dart';
 import 'package:micaseta_web/screens/partners_screen.dart';
 import 'package:micaseta_web/screens/products_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,7 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const PartnersScreen(),
     const ProductsScreen(),
-    const Center(child: Text('Pantalla de Gastos Comunes')),
+    const CommonExpenseScreen(),
   ];
 
   Future<void> _logout(BuildContext context) async {
@@ -30,9 +31,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mi Caseta'),
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20.0),
+          ),
+          child: Text(
+            'Mi Caseta',
+            style: TextStyle(
+              fontSize: 28.0,
+              fontWeight: FontWeight.w300,
+              letterSpacing: 1.5,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
         backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),

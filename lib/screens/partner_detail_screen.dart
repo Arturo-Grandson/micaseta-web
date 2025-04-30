@@ -52,15 +52,15 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
   }
 
   void _showAddPenaltyDialog(BuildContext context) async {
-    final _formKey = GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
     String festiveType = 'sj';
     int year = DateTime.now().year;
     double amount = 0;
     String reason = '';
     DateTime date = DateTime.now();
-    final _amountController = TextEditingController();
-    final _reasonController = TextEditingController();
-    final _dateController =
+    final amountController = TextEditingController();
+    final reasonController = TextEditingController();
+    final dateController =
         TextEditingController(text: date.toIso8601String().substring(0, 10));
 
     showDialog(
@@ -68,7 +68,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Añadir Sanción'),
         content: Form(
-          key: _formKey,
+          key: formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -98,7 +98,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _amountController,
+                controller: amountController,
                 decoration: const InputDecoration(
                   labelText: 'Cantidad (€)',
                   border: OutlineInputBorder(),
@@ -110,7 +110,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _reasonController,
+                controller: reasonController,
                 decoration: const InputDecoration(
                   labelText: 'Motivo',
                   border: OutlineInputBorder(),
@@ -121,7 +121,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _dateController,
+                controller: dateController,
                 decoration: const InputDecoration(
                   labelText: 'Fecha',
                   border: OutlineInputBorder(),
@@ -136,7 +136,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                   );
                   if (picked != null) {
                     date = picked;
-                    _dateController.text =
+                    dateController.text =
                         date.toIso8601String().substring(0, 10);
                   }
                 },
@@ -151,7 +151,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (!_formKey.currentState!.validate()) return;
+              if (!formKey.currentState!.validate()) return;
               final prefs = await SharedPreferences.getInstance();
               final boothId = prefs.getInt('boothId');
               if (boothId == null) {
@@ -167,7 +167,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                 'year': year,
                 'amount': amount,
                 'reason': reason,
-                'date': _dateController.text,
+                'date': dateController.text,
                 'userId': widget.partner['id'],
                 'boothId': boothId,
               };
@@ -252,8 +252,9 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                   try {
                     final prefs = await SharedPreferences.getInstance();
                     final boothId = prefs.getInt('boothId');
-                    if (boothId == null)
+                    if (boothId == null) {
                       throw Exception('No hay boothId asociado');
+                    }
 
                     final success =
                         await ProductService().sendConsumptionsEmail(
@@ -397,8 +398,8 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
               length: 3,
               child: Column(
                 children: [
-                  TabBar(
-                    tabs: const [
+                  const TabBar(
+                    tabs: [
                       Tab(text: 'San Juan'),
                       Tab(text: 'Feria'),
                       Tab(text: 'Sanciones'),
@@ -520,13 +521,13 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                                                               Navigator.of(
                                                                       context)
                                                                   .pop(true),
-                                                          child: const Text(
-                                                              'Eliminar'),
                                                           style: ElevatedButton
                                                               .styleFrom(
                                                                   backgroundColor:
                                                                       Colors
                                                                           .red),
+                                                          child: const Text(
+                                                              'Eliminar'),
                                                         ),
                                                       ],
                                                     ),

@@ -181,8 +181,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   void _showEditProductDialog(Product product) {
-    final _editNameController = TextEditingController(text: product.name);
-    final _editPriceController =
+    final editNameController = TextEditingController(text: product.name);
+    final editPriceController =
         TextEditingController(text: product.price.toString());
     showDialog(
       context: context,
@@ -193,7 +193,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextFormField(
-                controller: _editNameController,
+                controller: editNameController,
                 decoration: const InputDecoration(
                   labelText: 'Nombre del producto',
                   border: OutlineInputBorder(),
@@ -201,7 +201,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _editPriceController,
+                controller: editPriceController,
                 decoration: const InputDecoration(
                   labelText: 'Precio',
                   border: OutlineInputBorder(),
@@ -218,9 +218,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final newName = _editNameController.text;
-              final newPrice =
-                  double.tryParse(_editPriceController.text) ?? 0.0;
+              final newName = editNameController.text;
+              final newPrice = double.tryParse(editPriceController.text) ?? 0.0;
               final success = await _productService.editProduct(
                   product.id, newName, newPrice);
               if (success) {

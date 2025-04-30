@@ -28,7 +28,7 @@ class MyApp extends StatelessWidget {
       title: 'Mi Caseta',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
+          seedColor: const Color(0xFF00a6f4),
           brightness: Brightness.light,
         ),
         useMaterial3: true,
