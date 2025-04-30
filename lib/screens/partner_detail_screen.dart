@@ -1,0 +1,596 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:micaseta_web/services/product_service.dart';
+
+class PartnerDetailScreen extends StatefulWidget {
+  final Map<String, dynamic> partner;
+  const PartnerDetailScreen({super.key, required this.partner});
+
+  @override
+  State<PartnerDetailScreen> createState() => _PartnerDetailScreenState();
+}
+
+class _PartnerDetailScreenState extends State<PartnerDetailScreen> {
+  List<dynamic> _penalties = [];
+  List<dynamic> _consumptions = [];
+  bool _loadingPenalties = true;
+  bool _loadingConsumptions = true;
+  String? _penaltyError;
+  String? _consumptionError;
+  bool _isSJExpanded = false;
+  bool _isFeriaExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPenalties();
+    _loadConsumptions();
+  }
+
+  Future<void> _loadConsumptions() async {
+    setState(() {
+      _loadingConsumptions = true;
+      _consumptionError = null;
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final boothId = prefs.getInt('boothId');
+      if (boothId == null) throw Exception('No hay boothId asociado');
+      final consumptions =
+          await ProductService().getConsumptions(widget.partner['id'], boothId);
+      setState(() {
+        _consumptions = consumptions;
+        _loadingConsumptions = false;
+      });
+    } catch (e) {
+      setState(() {
+        _consumptionError = e.toString();
+        _loadingConsumptions = false;
+      });
+    }
+  }
+
+  Future<void> _loadPenalties() async {
+    setState(() {
+      _loadingPenalties = true;
+      _penaltyError = null;
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final boothId = prefs.getInt('boothId');
+      if (boothId == null) throw Exception('No hay boothId asociado');
+      final penalties =
+          await ProductService().getPenalties(widget.partner['id'], boothId);
+      setState(() {
+        _penalties = penalties;
+        _loadingPenalties = false;
+      });
+    } catch (e) {
+      setState(() {
+        _penaltyError = e.toString();
+        _loadingPenalties = false;
+      });
+    }
+  }
+
+  Future<void> _deletePenalty(int penaltyId) async {
+    final success = await ProductService().deletePenalty(penaltyId);
+    if (success) {
+      _loadPenalties();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Sanción eliminada'), backgroundColor: Colors.green),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Error al eliminar sanción'),
+            backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _showAddPenaltyDialog(BuildContext context) async {
+    final _formKey = GlobalKey<FormState>();
+    String festiveType = 'sj';
+    int year = DateTime.now().year;
+    double amount = 0;
+    String reason = '';
+    DateTime date = DateTime.now();
+    final _amountController = TextEditingController();
+    final _reasonController = TextEditingController();
+    final _dateController =
+        TextEditingController(text: date.toIso8601String().substring(0, 10));
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Añadir Sanción'),
+        content: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: festiveType,
+                decoration: const InputDecoration(
+                  labelText: 'Tipo de fiesta',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'sj', child: Text('San Juan')),
+                  DropdownMenuItem(value: 'f', child: Text('Feria')),
+                ],
+                onChanged: (value) {
+                  if (value != null) festiveType = value;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: year.toString(),
+                decoration: const InputDecoration(
+                  labelText: 'Año',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (v) => year = int.tryParse(v) ?? year,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _amountController,
+                decoration: const InputDecoration(
+                  labelText: 'Cantidad (€)',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (v) =>
+                    (v == null || v.isEmpty) ? 'Introduce una cantidad' : null,
+                onChanged: (v) => amount = double.tryParse(v) ?? 0,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _reasonController,
+                decoration: const InputDecoration(
+                  labelText: 'Motivo',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    (v == null || v.isEmpty) ? 'Introduce un motivo' : null,
+                onChanged: (v) => reason = v,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _dateController,
+                decoration: const InputDecoration(
+                  labelText: 'Fecha',
+                  border: OutlineInputBorder(),
+                ),
+                readOnly: true,
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: date,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null) {
+                    date = picked;
+                    _dateController.text =
+                        date.toIso8601String().substring(0, 10);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!_formKey.currentState!.validate()) return;
+              final prefs = await SharedPreferences.getInstance();
+              final boothId = prefs.getInt('boothId');
+              if (boothId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('No hay boothId asociado'),
+                      backgroundColor: Colors.red),
+                );
+                return;
+              }
+              final penaltyData = {
+                'festiveType': festiveType,
+                'year': year,
+                'amount': amount,
+                'reason': reason,
+                'date': _dateController.text,
+                'userId': widget.partner['id'],
+                'boothId': boothId,
+              };
+              final productService = ProductService();
+              final success = await productService.addPenalty(penaltyData);
+              if (success) {
+                if (context.mounted) Navigator.of(context).pop();
+                _loadPenalties();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Sanción añadida correctamente'),
+                      backgroundColor: Colors.green),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Error al añadir sanción'),
+                      backgroundColor: Colors.red),
+                );
+              }
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _festiveTypeLabel(dynamic value) {
+    if (value == 'sj' || value == 'SJ') return 'San Juan';
+    if (value == 'f' || value == 'F') return 'Feria';
+    return value.toString();
+  }
+
+  Widget _buildConsumptionsList(
+      List<dynamic> consumptions, String festiveType) {
+    final currentYear = DateTime.now().year;
+    final filteredConsumptions = consumptions
+        .where(
+            (c) => c['festiveType'] == festiveType && c['year'] == currentYear)
+        .toList();
+
+    if (filteredConsumptions.isEmpty) {
+      return const Center(
+          child: Text('No hay consumiciones para este tipo de fiesta'));
+    }
+
+    double totalAmount = 0;
+    for (var c in filteredConsumptions) {
+      final price = double.parse(c['product']['price']['price']);
+      totalAmount += price * c['quantity'];
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total: ${totalAmount.toStringAsFixed(2)}€',
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.email),
+                label:
+                    Text('Enviar desglose ${_festiveTypeLabel(festiveType)}'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  try {
+                    final prefs = await SharedPreferences.getInstance();
+                    final boothId = prefs.getInt('boothId');
+                    if (boothId == null)
+                      throw Exception('No hay boothId asociado');
+
+                    final success =
+                        await ProductService().sendConsumptionsEmail(
+                      widget.partner['id'],
+                      boothId,
+                      festiveType,
+                    );
+
+                    if (success) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Desglose de ${_festiveTypeLabel(festiveType)} enviado correctamente'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Error al enviar el desglose'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: ${e.toString()}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: filteredConsumptions.length,
+            itemBuilder: (context, index) {
+              final c = filteredConsumptions[index];
+              final price = double.parse(c['product']['price']['price']);
+              final total = price * c['quantity'];
+
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                child: ListTile(
+                  leading: Icon(
+                    c['product']['type'] == 'drink'
+                        ? Icons.local_drink
+                        : Icons.food_bank,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  title: Text(c['product']['name']),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Cantidad: ${c['quantity']}'),
+                      Text('Precio unitario: ${price.toStringAsFixed(2)}€'),
+                      Text('Total: ${total.toStringAsFixed(2)}€'),
+                      Text('Fecha: ${c['date'].toString().substring(0, 10)}'),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Detalle del Socio'),
+      ),
+      body: Column(
+        children: [
+          // Información del socio
+          Card(
+            elevation: 4,
+            margin: const EdgeInsets.all(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    child: Text(
+                      widget.partner['name'] != null &&
+                              widget.partner['name'].isNotEmpty
+                          ? widget.partner['name'][0].toUpperCase()
+                          : '',
+                      style: const TextStyle(fontSize: 36, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    leading: const Icon(Icons.person, color: Colors.blue),
+                    title: Text(
+                      '${widget.partner['name']} ${widget.partner['lastname']}',
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.email, color: Colors.blue),
+                    title: Text(
+                      widget.partner['email'] ?? '',
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.phone, color: Colors.blue),
+                    title: Text(
+                      widget.partner['phone'] ?? '',
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Pestañas
+          Expanded(
+            child: DefaultTabController(
+              length: 3,
+              child: Column(
+                children: [
+                  TabBar(
+                    tabs: const [
+                      Tab(text: 'San Juan'),
+                      Tab(text: 'Feria'),
+                      Tab(text: 'Sanciones'),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        // Pestaña de San Juan
+                        if (_loadingConsumptions)
+                          const Center(child: CircularProgressIndicator())
+                        else if (_consumptionError != null)
+                          Center(
+                              child: Text(_consumptionError!,
+                                  style: const TextStyle(color: Colors.red)))
+                        else
+                          _buildConsumptionsList(_consumptions, 'sj'),
+                        // Pestaña de Feria
+                        if (_loadingConsumptions)
+                          const Center(child: CircularProgressIndicator())
+                        else if (_consumptionError != null)
+                          Center(
+                              child: Text(_consumptionError!,
+                                  style: const TextStyle(color: Colors.red)))
+                        else
+                          _buildConsumptionsList(_consumptions, 'f'),
+                        // Pestaña de Sanciones
+                        Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Sanciones',
+                                    style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  ElevatedButton.icon(
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Añadir Sanción'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.redAccent,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    onPressed: () =>
+                                        _showAddPenaltyDialog(context),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: _loadingPenalties
+                                  ? const Center(
+                                      child: CircularProgressIndicator())
+                                  : _penaltyError != null
+                                      ? Center(
+                                          child: Text(_penaltyError!,
+                                              style: const TextStyle(
+                                                  color: Colors.red)))
+                                      : _penalties.isEmpty
+                                          ? const Center(
+                                              child: Text(
+                                                  'No hay sanciones para este socio.'))
+                                          : ListView.builder(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 16),
+                                              itemCount: _penalties.length,
+                                              itemBuilder: (context, index) {
+                                                final p = _penalties[index];
+                                                return Card(
+                                                  color: Colors.red[50],
+                                                  margin: const EdgeInsets
+                                                      .symmetric(vertical: 6),
+                                                  child: ListTile(
+                                                    leading: const Icon(
+                                                        Icons.warning,
+                                                        color: Colors.red),
+                                                    title: Text(
+                                                        '${_festiveTypeLabel(p['festiveType'])} - ${p['year']}'),
+                                                    subtitle: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                            'Cantidad: ${p['amount']} €'),
+                                                        Text(
+                                                            'Motivo: ${p['reason']}'),
+                                                        Text(
+                                                            'Fecha: ${p['date']}'),
+                                                      ],
+                                                    ),
+                                                    trailing: IconButton(
+                                                      icon: const Icon(
+                                                          Icons.delete,
+                                                          color: Colors.red),
+                                                      tooltip:
+                                                          'Eliminar sanción',
+                                                      onPressed: () async {
+                                                        final confirm =
+                                                            await showDialog<
+                                                                bool>(
+                                                          context: context,
+                                                          builder: (context) =>
+                                                              AlertDialog(
+                                                            title: const Text(
+                                                                'Eliminar sanción'),
+                                                            content: const Text(
+                                                                '¿Seguro que quieres eliminar esta sanción?'),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed: () =>
+                                                                    Navigator.of(
+                                                                            context)
+                                                                        .pop(
+                                                                            false),
+                                                                child: const Text(
+                                                                    'Cancelar'),
+                                                              ),
+                                                              ElevatedButton(
+                                                                onPressed: () =>
+                                                                    Navigator.of(
+                                                                            context)
+                                                                        .pop(
+                                                                            true),
+                                                                child: const Text(
+                                                                    'Eliminar'),
+                                                                style: ElevatedButton
+                                                                    .styleFrom(
+                                                                        backgroundColor:
+                                                                            Colors.red),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                        if (confirm == true) {
+                                                          _deletePenalty(
+                                                              p['id']);
+                                                        }
+                                                      },
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
