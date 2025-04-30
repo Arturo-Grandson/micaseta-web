@@ -39,11 +39,13 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
       if (boothId == null) throw Exception('No hay boothId asociado');
       final consumptions =
           await ProductService().getConsumptions(widget.partner['id'], boothId);
+      if (!mounted) return;
       setState(() {
         _consumptions = consumptions;
         _loadingConsumptions = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _consumptionError = e.toString();
         _loadingConsumptions = false;
@@ -63,6 +65,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
     final dateController =
         TextEditingController(text: date.toIso8601String().substring(0, 10));
 
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -154,6 +157,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
               if (!formKey.currentState!.validate()) return;
               final prefs = await SharedPreferences.getInstance();
               final boothId = prefs.getInt('boothId');
+              if (!mounted) return;
               if (boothId == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -176,24 +180,22 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                 await ref
                     .read(penaltiesProvider.notifier)
                     .addPenalty(penaltyData);
-                if (context.mounted) {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Sanción añadida correctamente'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
+                if (!mounted) return;
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Sanción añadida correctamente'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
               } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: ${e.toString()}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             child: const Text('Guardar'),
@@ -263,35 +265,31 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                       festiveType,
                     );
 
+                    if (!mounted) return;
                     if (success) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'Desglose de ${_festiveTypeLabel(festiveType)} enviado correctamente'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    } else {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Error al enviar el desglose'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Error: ${e.toString()}'),
+                          content: Text(
+                              'Desglose de ${_festiveTypeLabel(festiveType)} enviado correctamente'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Error al enviar el desglose'),
                           backgroundColor: Colors.red,
                         ),
                       );
                     }
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: ${e.toString()}'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
                   }
                 },
               ),

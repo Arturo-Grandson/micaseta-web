@@ -24,8 +24,6 @@ class PenaltiesNotifier extends AsyncNotifier<List<Penalty>> {
       final penalties = await ProductService().getPenalties(userId, boothId);
       state = AsyncValue.data(
         penalties.map((p) {
-          // Log para depuración
-          print('Procesando sanción: $p');
           return Penalty(
             id: p['id'] is String ? int.parse(p['id']) : p['id'] as int,
             festiveType: p['festiveType'] as String,
@@ -43,7 +41,6 @@ class PenaltiesNotifier extends AsyncNotifier<List<Penalty>> {
         }).toList(),
       );
     } catch (e, st) {
-      print('Error cargando sanciones: $e');
       state = AsyncValue.error(e, st);
     }
   }
@@ -52,7 +49,6 @@ class PenaltiesNotifier extends AsyncNotifier<List<Penalty>> {
     try {
       final success = await ProductService().addPenalty(penaltyData);
       if (success) {
-        // Recargar las sanciones después de añadir una nueva
         loadPenalties(penaltyData['userId'] as int);
       } else {
         throw Exception('Error al añadir la sanción');
@@ -66,7 +62,6 @@ class PenaltiesNotifier extends AsyncNotifier<List<Penalty>> {
     try {
       final success = await ProductService().deletePenalty(penaltyId);
       if (success) {
-        // Recargar las sanciones después de eliminar una
         loadPenalties(userId);
       } else {
         throw Exception('Error al eliminar la sanción');

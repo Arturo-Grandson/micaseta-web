@@ -20,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const CommonExpenseScreen(),
   ];
 
-  Future<void> _logout(BuildContext context) async {
+  Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
     await prefs.remove('boothId');
@@ -55,7 +55,10 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar sesión',
-            onPressed: () => _logout(context),
+            onPressed: () {
+              if (!mounted) return;
+              _logout();
+            },
           ),
         ],
       ),
