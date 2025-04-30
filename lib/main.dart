@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:micaseta_web/screens/home_screen.dart';
 import 'package:micaseta_web/screens/login_screen.dart';
 import 'package:micaseta_web/services/auth_service.dart';
@@ -8,7 +9,11 @@ void main() async {
   final authService = AuthService();
   final isLoggedIn = await authService.isLoggedIn();
 
-  runApp(MyApp(initialRoute: isLoggedIn ? '/home' : '/login'));
+  runApp(
+    ProviderScope(
+      child: MyApp(initialRoute: isLoggedIn ? '/home' : '/login'),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

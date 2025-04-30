@@ -1,30 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:micaseta_web/services/product_service.dart';
+import 'package:micaseta_web/providers/penalties_provider.dart';
 
-class PartnerDetailScreen extends StatefulWidget {
+class PartnerDetailScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> partner;
   const PartnerDetailScreen({super.key, required this.partner});
 
   @override
-  State<PartnerDetailScreen> createState() => _PartnerDetailScreenState();
+  ConsumerState<PartnerDetailScreen> createState() =>
+      _PartnerDetailScreenState();
 }
 
-class _PartnerDetailScreenState extends State<PartnerDetailScreen> {
-  List<dynamic> _penalties = [];
+class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
   List<dynamic> _consumptions = [];
-  bool _loadingPenalties = true;
   bool _loadingConsumptions = true;
-  String? _penaltyError;
   String? _consumptionError;
-  bool _isSJExpanded = false;
-  bool _isFeriaExpanded = false;
 
   @override
   void initState() {
     super.initState();
-    _loadPenalties();
     _loadConsumptions();
+    // Cargar las sanciones usando el provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(penaltiesProvider.notifier).loadPenalties(widget.partner['id']);
+    });
   }
 
   Future<void> _loadConsumptions() async {
@@ -47,46 +48,6 @@ class _PartnerDetailScreenState extends State<PartnerDetailScreen> {
         _consumptionError = e.toString();
         _loadingConsumptions = false;
       });
-    }
-  }
-
-  Future<void> _loadPenalties() async {
-    setState(() {
-      _loadingPenalties = true;
-      _penaltyError = null;
-    });
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final boothId = prefs.getInt('boothId');
-      if (boothId == null) throw Exception('No hay boothId asociado');
-      final penalties =
-          await ProductService().getPenalties(widget.partner['id'], boothId);
-      setState(() {
-        _penalties = penalties;
-        _loadingPenalties = false;
-      });
-    } catch (e) {
-      setState(() {
-        _penaltyError = e.toString();
-        _loadingPenalties = false;
-      });
-    }
-  }
-
-  Future<void> _deletePenalty(int penaltyId) async {
-    final success = await ProductService().deletePenalty(penaltyId);
-    if (success) {
-      _loadPenalties();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Sanción eliminada'), backgroundColor: Colors.green),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Error al eliminar sanción'),
-            backgroundColor: Colors.red),
-      );
     }
   }
 
@@ -210,22 +171,29 @@ class _PartnerDetailScreenState extends State<PartnerDetailScreen> {
                 'userId': widget.partner['id'],
                 'boothId': boothId,
               };
-              final productService = ProductService();
-              final success = await productService.addPenalty(penaltyData);
-              if (success) {
-                if (context.mounted) Navigator.of(context).pop();
-                _loadPenalties();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+
+              try {
+                await ref
+                    .read(penaltiesProvider.notifier)
+                    .addPenalty(penaltyData);
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
                       content: Text('Sanción añadida correctamente'),
-                      backgroundColor: Colors.green),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Error al añadir sanción'),
-                      backgroundColor: Colors.red),
-                );
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Guardar'),
@@ -367,6 +335,8 @@ class _PartnerDetailScreenState extends State<PartnerDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final penaltiesAsync = ref.watch(penaltiesProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detalle del Socio'),
@@ -484,101 +454,99 @@ class _PartnerDetailScreenState extends State<PartnerDetailScreen> {
                               ),
                             ),
                             Expanded(
-                              child: _loadingPenalties
-                                  ? const Center(
-                                      child: CircularProgressIndicator())
-                                  : _penaltyError != null
-                                      ? Center(
-                                          child: Text(_penaltyError!,
-                                              style: const TextStyle(
-                                                  color: Colors.red)))
-                                      : _penalties.isEmpty
-                                          ? const Center(
-                                              child: Text(
-                                                  'No hay sanciones para este socio.'))
-                                          : ListView.builder(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 16),
-                                              itemCount: _penalties.length,
-                                              itemBuilder: (context, index) {
-                                                final p = _penalties[index];
-                                                return Card(
-                                                  color: Colors.red[50],
-                                                  margin: const EdgeInsets
-                                                      .symmetric(vertical: 6),
-                                                  child: ListTile(
-                                                    leading: const Icon(
-                                                        Icons.warning,
-                                                        color: Colors.red),
-                                                    title: Text(
-                                                        '${_festiveTypeLabel(p['festiveType'])} - ${p['year']}'),
-                                                    subtitle: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                            'Cantidad: ${p['amount']} €'),
-                                                        Text(
-                                                            'Motivo: ${p['reason']}'),
-                                                        Text(
-                                                            'Fecha: ${p['date']}'),
+                              child: penaltiesAsync.when(
+                                loading: () => const Center(
+                                    child: CircularProgressIndicator()),
+                                error: (error, stack) => Center(
+                                  child: Text(
+                                    error.toString(),
+                                    style: const TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                                data: (penalties) => penalties.isEmpty
+                                    ? const Center(
+                                        child: Text(
+                                            'No hay sanciones para este socio.'))
+                                    : ListView.builder(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16),
+                                        itemCount: penalties.length,
+                                        itemBuilder: (context, index) {
+                                          final p = penalties[index];
+                                          return Card(
+                                            color: Colors.red[50],
+                                            margin: const EdgeInsets.symmetric(
+                                                vertical: 6),
+                                            child: ListTile(
+                                              leading: const Icon(Icons.warning,
+                                                  color: Colors.red),
+                                              title: Text(
+                                                  '${_festiveTypeLabel(p.festiveType)} - ${p.year}'),
+                                              subtitle: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                      'Cantidad: ${p.amount} €'),
+                                                  Text('Motivo: ${p.reason}'),
+                                                  Text('Fecha: ${p.date}'),
+                                                ],
+                                              ),
+                                              trailing: IconButton(
+                                                icon: const Icon(Icons.delete,
+                                                    color: Colors.red),
+                                                tooltip: 'Eliminar sanción',
+                                                onPressed: () async {
+                                                  final confirm =
+                                                      await showDialog<bool>(
+                                                    context: context,
+                                                    builder: (context) =>
+                                                        AlertDialog(
+                                                      title: const Text(
+                                                          'Eliminar sanción'),
+                                                      content: const Text(
+                                                          '¿Seguro que quieres eliminar esta sanción?'),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.of(
+                                                                      context)
+                                                                  .pop(false),
+                                                          child: const Text(
+                                                              'Cancelar'),
+                                                        ),
+                                                        ElevatedButton(
+                                                          onPressed: () =>
+                                                              Navigator.of(
+                                                                      context)
+                                                                  .pop(true),
+                                                          child: const Text(
+                                                              'Eliminar'),
+                                                          style: ElevatedButton
+                                                              .styleFrom(
+                                                                  backgroundColor:
+                                                                      Colors
+                                                                          .red),
+                                                        ),
                                                       ],
                                                     ),
-                                                    trailing: IconButton(
-                                                      icon: const Icon(
-                                                          Icons.delete,
-                                                          color: Colors.red),
-                                                      tooltip:
-                                                          'Eliminar sanción',
-                                                      onPressed: () async {
-                                                        final confirm =
-                                                            await showDialog<
-                                                                bool>(
-                                                          context: context,
-                                                          builder: (context) =>
-                                                              AlertDialog(
-                                                            title: const Text(
-                                                                'Eliminar sanción'),
-                                                            content: const Text(
-                                                                '¿Seguro que quieres eliminar esta sanción?'),
-                                                            actions: [
-                                                              TextButton(
-                                                                onPressed: () =>
-                                                                    Navigator.of(
-                                                                            context)
-                                                                        .pop(
-                                                                            false),
-                                                                child: const Text(
-                                                                    'Cancelar'),
-                                                              ),
-                                                              ElevatedButton(
-                                                                onPressed: () =>
-                                                                    Navigator.of(
-                                                                            context)
-                                                                        .pop(
-                                                                            true),
-                                                                child: const Text(
-                                                                    'Eliminar'),
-                                                                style: ElevatedButton
-                                                                    .styleFrom(
-                                                                        backgroundColor:
-                                                                            Colors.red),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        );
-                                                        if (confirm == true) {
-                                                          _deletePenalty(
-                                                              p['id']);
-                                                        }
-                                                      },
-                                                    ),
-                                                  ),
-                                                );
-                                              },
+                                                  );
+                                                  if (confirm == true) {
+                                                    await ref
+                                                        .read(penaltiesProvider
+                                                            .notifier)
+                                                        .deletePenalty(
+                                                            p.id,
+                                                            widget
+                                                                .partner['id']);
+                                                  }
+                                                },
+                                              ),
                                             ),
+                                          );
+                                        },
+                                      ),
+                              ),
                             ),
                           ],
                         ),
