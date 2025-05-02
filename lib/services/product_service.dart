@@ -91,6 +91,7 @@ class MainLayout extends StatelessWidget {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
     await prefs.remove('boothId');
+    if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
   }
 

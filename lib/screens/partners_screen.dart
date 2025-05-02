@@ -24,7 +24,6 @@ class _PartnersScreenState extends State<PartnersScreen> {
   Future<void> _loadUsers() async {
     try {
       final users = await _userService.getUsers();
-      print(users);
       setState(() {
         _users = users;
         _isLoading = false;
