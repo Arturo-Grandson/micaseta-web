@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:micaseta_web/services/product_service.dart';
 import 'package:micaseta_web/providers/penalties_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PartnerDetailScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> partner;
@@ -157,8 +158,9 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
               if (!formKey.currentState!.validate()) return;
               final prefs = await SharedPreferences.getInstance();
               final boothId = prefs.getInt('boothId');
-              if (!mounted) return;
+              if (!context.mounted) return;
               if (boothId == null) {
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                       content: Text('No hay boothId asociado'),
@@ -180,8 +182,9 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                 await ref
                     .read(penaltiesProvider.notifier)
                     .addPenalty(penaltyData);
-                if (!mounted) return;
+                if (!context.mounted) return;
                 Navigator.of(context).pop();
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Sanción añadida correctamente'),
@@ -189,7 +192,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                   ),
                 );
               } catch (e) {
-                if (!mounted) return;
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Error: ${e.toString()}'),
@@ -238,16 +241,15 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total: ${totalAmount.toStringAsFixed(2)}€ Esta suma no es exacta debido a que puede haber productos que aun no tienen precio',
+                'Total: ${totalAmount.toStringAsFixed(2)}€ || Esta suma no es exacta debido a que puede haber productos que aun no tienen precio',
                 style:
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               ElevatedButton.icon(
-                icon: const Icon(Icons.email),
-                label:
-                    Text('Enviar desglose ${_festiveTypeLabel(festiveType)}'),
+                icon: const Icon(Icons.message),
+                label: Text('Enviar desglose ${_festiveTypeLabel(festiveType)}'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  backgroundColor: const Color(0xFF25D366), // Color verde de WhatsApp
                   foregroundColor: Colors.white,
                 ),
                 onPressed: () async {
@@ -258,32 +260,48 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                       throw Exception('No hay boothId asociado');
                     }
 
-                    final success =
-                        await ProductService().sendConsumptionsEmail(
-                      widget.partner['id'],
-                      boothId,
-                      festiveType,
-                    );
+                    // Obtener el número de teléfono del socio
+                    final phoneNumber = widget.partner['phone'];
+                    final phoneNumberWithPrefix = '+34$phoneNumber';
+                    if (phoneNumber == null || phoneNumber.isEmpty) {
+                      throw Exception('No hay número de teléfono asociado al socio');
+                    }
 
-                    if (!mounted) return;
-                    if (success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                              'Desglose de ${_festiveTypeLabel(festiveType)} enviado correctamente'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                    // Formatear el número de teléfono para WhatsApp
+                    final formattedPhone = phoneNumberWithPrefix.replaceAll(RegExp(r'[^\d+]'), '');
+                    if (!formattedPhone.startsWith('+')) {
+                      throw Exception('El número de teléfono debe incluir el código de país (ej: +34)');
+                    }
+
+                    // Construir el mensaje
+                    final message = '''
+*Desglose de ${_festiveTypeLabel(festiveType)}*
+
+Socio: ${widget.partner['name']} ${widget.partner['lastname']}
+
+Consumiciones:
+${filteredConsumptions.map((c) {
+  final price = double.parse(c['product']['price']['price']);
+  final total = price * c['quantity'];
+  return '- ${c['product']['name']}: ${c['quantity']} x ${price.toStringAsFixed(2)}€ = ${total.toStringAsFixed(2)}€';
+}).join('\n')}
+
+Total: ${totalAmount.toStringAsFixed(2)}€
+''';
+
+                    // Crear la URL de WhatsApp
+                    final whatsappUrl = 'https://wa.me/$formattedPhone?text=${Uri.encodeComponent(message)}';
+
+                    // Abrir WhatsApp
+                    if (!context.mounted) return;
+                    final uri = Uri.parse(whatsappUrl);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Error al enviar el desglose'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
+                      throw Exception('No se pudo abrir WhatsApp');
                     }
                   } catch (e) {
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Error: ${e.toString()}'),
