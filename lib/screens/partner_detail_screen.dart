@@ -238,7 +238,7 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total: ${totalAmount.toStringAsFixed(2)}€',
+                'Total: ${totalAmount.toStringAsFixed(2)}€ Esta suma no es exacta debido a que puede haber productos que aun no tienen precio',
                 style:
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),

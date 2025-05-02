@@ -75,7 +75,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
         'type': _selectedProductType,
         'boothId': boothId,
         'price': {
-          'price': double.parse(_priceController.text),
+          'price': _priceController.text.isNotEmpty 
+              ? double.parse(_priceController.text) 
+              : 0.0,
         },
       });
 
@@ -129,10 +131,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ),
                 keyboardType: TextInputType.number,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese un precio';
-                  }
-                  if (double.tryParse(value) == null) {
+                  if (value != null && value.isNotEmpty && double.tryParse(value) == null) {
                     return 'Por favor ingrese un precio válido';
                   }
                   return null;
