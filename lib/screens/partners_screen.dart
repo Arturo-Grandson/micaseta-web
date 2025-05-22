@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:micaseta_web/models/user.dart';
 import 'package:micaseta_web/services/user_service.dart';
 import 'package:micaseta_web/screens/partner_detail_screen.dart';
 
@@ -11,7 +12,7 @@ class PartnersScreen extends StatefulWidget {
 
 class _PartnersScreenState extends State<PartnersScreen> {
   final _userService = UserService();
-  List<dynamic> _users = [];
+  List<User> _users = [];
   bool _isLoading = true;
   String? _error;
 
@@ -72,17 +73,18 @@ class _PartnersScreenState extends State<PartnersScreen> {
             leading: CircleAvatar(
               backgroundColor: Theme.of(context).colorScheme.primary,
               child: Text(
-                user['name'][0].toUpperCase(),
+                user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
                 style: const TextStyle(color: Colors.white),
               ),
             ),
-            title: Text('${user['name']} ${user['lastname']}'),
-            subtitle: Text(user['email']),
-            trailing: Text(user['phone']),
+            title: Text('${user.name} ${user.lastname}'.trim()),
+            subtitle: Text(user.email),
+            trailing: Text(user.phone ?? ''),
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => PartnerDetailScreen(partner: user),
+                  builder: (context) =>
+                      PartnerDetailScreen(partner: user.toJson()),
                 ),
               );
             },

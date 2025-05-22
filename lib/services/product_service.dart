@@ -1,114 +1,115 @@
+import 'package:micaseta_web/services/base_api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:micaseta_web/services/api_service.dart';
 import '../models/product.dart';
-import 'package:flutter/material.dart';
 
-class ProductService {
-  final ApiService _apiService = ApiService();
-
-  static const String baseUrl = 'http://localhost:3000';
-
+class ProductService extends BaseApiService {
   Future<List<Product>> getProducts(int boothId) async {
-    final response = await _apiService.get('/product/booth/$boothId');
-    if (response is List) {
-      return response.map((json) => Product.fromJson(json)).toList();
-    } else {
-      throw Exception('Error al cargar los productos');
+    try {
+      final response = await httpClient.get('product/booth/$boothId');
+      return parseResponseList(response, (json) => Product.fromJson(json));
+    } catch (e) {
+      throw Exception('Error al cargar los productos: $e');
     }
   }
 
   Future<Product> getProductById(int id) async {
-    final response = await _apiService.get('/products/$id');
-    if (response is Map<String, dynamic>) {
-      return Product.fromJson(response);
-    } else {
-      throw Exception('Error al cargar el producto');
+    try {
+      final response = await httpClient.get('products/$id');
+      return parseResponse(response, (json) => Product.fromJson(json));
+    } catch (e) {
+      throw Exception('Error al cargar el producto: $e');
     }
   }
 
   Future<bool> addProduct(Map<String, dynamic> productData) async {
-    final response = await _apiService.post('/product', productData);
-    return response != null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final boothId = prefs.getInt('boothId');
+      if (boothId == null) throw Exception('No hay boothId asociado');
+
+      final body = {
+        ...productData,
+        'boothId': boothId,
+        'price': {
+          'price': productData['price'],
+          'year': DateTime.now().year,
+        },
+      };
+
+      final response = await httpClient.post('product', body: body);
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      throw Exception('Error al añadir el producto: $e');
+    }
   }
 
   Future<bool> editProduct(int id, String name, double price) async {
-    final response = await _apiService.put(
-      '/product/$id',
-      {
-        'name': name,
-        'price': {'price': price},
-      },
-    );
-    return response != null;
+    try {
+      final response = await httpClient.put(
+        'product/$id',
+        body: {
+          'name': name,
+          'price': {
+            'price': price,
+            'year': DateTime.now().year,
+          },
+        },
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      throw Exception('Error al editar el producto: $e');
+    }
   }
 
   Future<bool> addPenalty(Map<String, dynamic> penaltyData) async {
-    final response = await _apiService.post('/penalty', penaltyData);
-    return response != null;
+    try {
+      final response = await httpClient.post('penalty', body: penaltyData);
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      throw Exception('Error al añadir la sanción: $e');
+    }
   }
 
   Future<List<dynamic>> getPenalties(int userId, int boothId) async {
-    final response =
-        await _apiService.get('/penalty/user/$userId/booth/$boothId');
-    if (response is List) {
-      return response;
-    } else {
-      throw Exception('Error al cargar las sanciones');
+    try {
+      final response =
+          await httpClient.get('penalty/user/$userId/booth/$boothId');
+      return parseResponseList(response, (json) => json);
+    } catch (e) {
+      throw Exception('Error al cargar las sanciones: $e');
     }
   }
 
   Future<bool> deletePenalty(int penaltyId) async {
-    final response = await _apiService.delete('/penalty/$penaltyId');
-    return response != null;
+    try {
+      final response = await httpClient.delete('penalty/$penaltyId');
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      throw Exception('Error al eliminar la sanción: $e');
+    }
   }
 
   Future<List<dynamic>> getConsumptions(int userId, int boothId) async {
-    final response =
-        await _apiService.get('/consumption/user/$userId/booth/$boothId');
-    if (response is List) {
-      return response;
-    } else {
-      throw Exception('Error al cargar las consumiciones');
+    try {
+      final response =
+          await httpClient.get('consumption/user/$userId/booth/$boothId');
+      return parseResponseList(response, (json) => json);
+    } catch (e) {
+      throw Exception('Error al cargar las consumiciones: $e');
     }
   }
 
   Future<bool> sendConsumptionsEmail(
       int userId, int boothId, String festiveType) async {
-    final response = await _apiService.post('/consumption/send-email', {
-      'userId': userId,
-      'boothId': boothId,
-      'festiveType': festiveType,
-    });
-    return response != null;
-  }
-}
-
-class MainLayout extends StatelessWidget {
-  final Widget child;
-  const MainLayout({required this.child, super.key});
-
-  Future<void> _logout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('boothId');
-    if (!context.mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mi Caseta'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar sesión',
-            onPressed: () => _logout(context),
-          ),
-        ],
-      ),
-      body: child,
-    );
+    try {
+      final response = await httpClient.post('consumption/send-email', body: {
+        'userId': userId,
+        'boothId': boothId,
+        'festiveType': festiveType,
+      });
+      return response.statusCode == 200;
+    } catch (e) {
+      throw Exception('Error al enviar el email de consumiciones: $e');
+    }
   }
 }

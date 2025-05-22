@@ -1,23 +1,25 @@
 import 'package:micaseta_web/models/common_expense.dart';
-import 'package:micaseta_web/services/api_service.dart';
+import 'package:micaseta_web/services/base_api_service.dart';
 
-class CommonExpensesService {
-  final ApiService _apiService = ApiService();
-
+class CommonExpensesService extends BaseApiService {
   Future<bool> addCommonExpense(Map<String, dynamic> commonExpenseData) async {
-    final response =
-        await _apiService.post('/expenses/common-expense', commonExpenseData);
-    return response != null;
+    try {
+      final response = await httpClient.post('expenses/common-expense',
+          body: commonExpenseData);
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      throw Exception('Error al añadir el gasto común: $e');
+    }
   }
 
   Future<List<CommonExpense>> getCommonExpenses(int boothId, int year) async {
-    final response =
-        await _apiService.get('/expenses/common-expense/$boothId/$year');
-
-    if (response is List) {
-      return response.map((json) => CommonExpense.fromJson(json)).toList();
-    } else {
-      throw Exception('Error al cargar los gastos comunes');
+    try {
+      final response =
+          await httpClient.get('expenses/common-expense/$boothId/$year');
+      return parseResponseList(
+          response, (json) => CommonExpense.fromJson(json));
+    } catch (e) {
+      throw Exception('Error al cargar los gastos comunes: $e');
     }
   }
 }

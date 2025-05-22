@@ -16,109 +16,119 @@ class ProductsScreen extends ConsumerWidget {
         onPressed: () => _showAddProductDialog(context, productsNotifier),
         child: const Icon(Icons.add),
       ),
-      body: productsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Error: $error',
-                style: const TextStyle(color: Colors.red),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return productsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stack) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Error: $error',
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => productsNotifier.loadProducts(),
+                    child: const Text('Reintentar'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => productsNotifier.loadProducts(),
-                child: const Text('Reintentar'),
-              ),
-            ],
-          ),
-        ),
-        data: (state) => SizedBox(
-          height: MediaQuery.of(context).size.height,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Buscar producto',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onChanged: productsNotifier.setSearchQuery,
-                    ),
-                    const SizedBox(height: 16),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment<String>(
-                          value: 'all',
-                          label: Text('Todos'),
-                          icon: Icon(Icons.all_inclusive),
-                        ),
-                        ButtonSegment<String>(
-                          value: 'food',
-                          label: Text('Comida'),
-                          icon: Icon(Icons.food_bank),
-                        ),
-                        ButtonSegment<String>(
-                          value: 'drink',
-                          label: Text('Bebida'),
-                          icon: Icon(Icons.local_drink),
-                        ),
-                      ],
-                      selected: {state.selectedType},
-                      onSelectionChanged: (Set<String> newSelection) {
-                        productsNotifier.setSelectedType(newSelection.first);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: state.filteredProducts.length,
-                  itemBuilder: (context, index) {
-                    final product = state.filteredProducts[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          child: Icon(
-                            product.type == 'drink' ? Icons.local_drink : Icons.food_bank,
-                            color: Colors.white,
+            ),
+            data: (state) => CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Buscar producto',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.search),
                           ),
+                          onChanged: productsNotifier.setSearchQuery,
                         ),
-                        title: Text(product.name),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _formatPrice(product.price),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+                        const SizedBox(height: 16),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment<String>(
+                              value: 'all',
+                              label: Text('Todos'),
+                              icon: Icon(Icons.all_inclusive),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              tooltip: 'Editar',
-                              onPressed: () => _showEditProductDialog(context, product, productsNotifier),
+                            ButtonSegment<String>(
+                              value: 'food',
+                              label: Text('Comida'),
+                              icon: Icon(Icons.food_bank),
+                            ),
+                            ButtonSegment<String>(
+                              value: 'drink',
+                              label: Text('Bebida'),
+                              icon: Icon(Icons.local_drink),
                             ),
                           ],
+                          selected: {state.selectedType},
+                          onSelectionChanged: (Set<String> newSelection) {
+                            productsNotifier
+                                .setSelectedType(newSelection.first);
+                          },
                         ),
-                      ),
-                    );
-                  },
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
+                SliverPadding(
+                  padding: const EdgeInsets.all(16.0),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final product = state.filteredProducts[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primary,
+                              child: Icon(
+                                product.type == 'drink'
+                                    ? Icons.local_drink
+                                    : Icons.food_bank,
+                                color: Colors.white,
+                              ),
+                            ),
+                            title: Text(product.name),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _formatPrice(product.price),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  tooltip: 'Editar',
+                                  onPressed: () => _showEditProductDialog(
+                                      context, product, productsNotifier),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                      childCount: state.filteredProducts.length,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -160,7 +170,9 @@ class ProductsScreen extends ConsumerWidget {
                 ),
                 keyboardType: TextInputType.number,
                 validator: (value) {
-                  if (value != null && value.isNotEmpty && double.tryParse(value) == null) {
+                  if (value != null &&
+                      value.isNotEmpty &&
+                      double.tryParse(value) == null) {
                     return 'Por favor ingrese un precio válido';
                   }
                   return null;
@@ -202,13 +214,20 @@ class ProductsScreen extends ConsumerWidget {
               if (!formKey.currentState!.validate()) return;
 
               try {
+                final price = priceController.text.isNotEmpty
+                    ? double.parse(priceController.text)
+                    : 0.0;
+
+                if (price < 0) {
+                  throw Exception('El precio no puede ser negativo');
+                }
+
                 await notifier.addProduct({
                   'name': nameController.text,
                   'type': selectedProductType,
                   'price': {
-                    'price': priceController.text.isNotEmpty 
-                        ? double.parse(priceController.text) 
-                        : 0.0,
+                    'price': price,
+                    'year': DateTime.now().year,
                   },
                 });
                 if (!context.mounted) return;
@@ -230,9 +249,11 @@ class ProductsScreen extends ConsumerWidget {
     );
   }
 
-  void _showEditProductDialog(BuildContext context, Product product, ProductsNotifier notifier) {
+  void _showEditProductDialog(
+      BuildContext context, Product product, ProductsNotifier notifier) {
     final editNameController = TextEditingController(text: product.name);
-    final editPriceController = TextEditingController(text: product.price.toString());
+    final editPriceController =
+        TextEditingController(text: product.price.toString());
 
     showDialog(
       context: context,
@@ -268,10 +289,27 @@ class ProductsScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () async {
+              if (editNameController.text.isEmpty) {
+                throw Exception('El nombre del producto no puede estar vacío');
+              }
+
               final newName = editNameController.text;
-              final newPrice = double.tryParse(editPriceController.text) ?? 0.0;
+              final newPrice = double.tryParse(editPriceController.text);
+
+              if (newPrice == null) {
+                throw Exception('Por favor, introduce un precio válido');
+              }
+
+              if (newPrice < 0) {
+                throw Exception('El precio no puede ser negativo');
+              }
+
               try {
-                await notifier.editProduct(product.id, newName, newPrice);
+                await notifier.editProduct(
+                  product.id,
+                  newName,
+                  newPrice,
+                );
                 if (!context.mounted) return;
                 Navigator.of(context).pop();
               } catch (e) {

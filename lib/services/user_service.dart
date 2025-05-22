@@ -1,35 +1,22 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:micaseta_web/services/base_api_service.dart';
+import 'package:micaseta_web/models/user.dart';
 
-class UserService {
-  static const String baseUrl = 'http://localhost:3000';
-
-  Future<List<dynamic>> getUsers() async {
+class UserService extends BaseApiService {
+  Future<List<User>> getUsers() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-
-      if (token == null) {
-        throw Exception('No hay token de autenticación');
-      }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/users'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data;
-      } else {
-        throw Exception('Error al obtener usuarios: ${response.statusCode}');
-      }
+      final response = await httpClient.get('users');
+      return parseResponseList(response, (json) => User.fromJson(json));
     } catch (e) {
-      throw Exception('Error al conectar con el servidor: $e');
+      throw Exception('Error al obtener usuarios: $e');
+    }
+  }
+
+  Future<User> getUserById(int id) async {
+    try {
+      final response = await httpClient.get('users/$id');
+      return parseResponse(response, (json) => User.fromJson(json));
+    } catch (e) {
+      throw Exception('Error al obtener usuario: $e');
     }
   }
 }

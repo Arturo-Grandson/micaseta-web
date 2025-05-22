@@ -247,9 +247,11 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
               ),
               ElevatedButton.icon(
                 icon: const Icon(Icons.message),
-                label: Text('Enviar desglose ${_festiveTypeLabel(festiveType)}'),
+                label:
+                    Text('Enviar desglose ${_festiveTypeLabel(festiveType)}'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF25D366), // Color verde de WhatsApp
+                  backgroundColor:
+                      const Color(0xFF25D366), // Color verde de WhatsApp
                   foregroundColor: Colors.white,
                 ),
                 onPressed: () async {
@@ -264,13 +266,16 @@ class _PartnerDetailScreenState extends ConsumerState<PartnerDetailScreen> {
                     final phoneNumber = widget.partner['phone'];
                     final phoneNumberWithPrefix = '+34$phoneNumber';
                     if (phoneNumber == null || phoneNumber.isEmpty) {
-                      throw Exception('No hay número de teléfono asociado al socio');
+                      throw Exception(
+                          'No hay número de teléfono asociado al socio');
                     }
 
                     // Formatear el número de teléfono para WhatsApp
-                    final formattedPhone = phoneNumberWithPrefix.replaceAll(RegExp(r'[^\d+]'), '');
+                    final formattedPhone =
+                        phoneNumberWithPrefix.replaceAll(RegExp(r'[^\d+]'), '');
                     if (!formattedPhone.startsWith('+')) {
-                      throw Exception('El número de teléfono debe incluir el código de país (ej: +34)');
+                      throw Exception(
+                          'El número de teléfono debe incluir el código de país (ej: +34)');
                     }
 
                     // Construir el mensaje
@@ -281,16 +286,18 @@ Socio: ${widget.partner['name']} ${widget.partner['lastname']}
 
 Consumiciones:
 ${filteredConsumptions.map((c) {
-  final price = double.parse(c['product']['price']['price']);
-  final total = price * c['quantity'];
-  return '- ${c['product']['name']}: ${c['quantity']} x ${price.toStringAsFixed(2)}€ = ${total.toStringAsFixed(2)}€';
-}).join('\n')}
+                      final price =
+                          double.parse(c['product']['price']['price']);
+                      final total = price * c['quantity'];
+                      return '- ${c['product']['name']}: ${c['quantity']} x ${price.toStringAsFixed(2)}€ = ${total.toStringAsFixed(2)}€';
+                    }).join('\n')}
 
 Total: ${totalAmount.toStringAsFixed(2)}€
 ''';
 
                     // Crear la URL de WhatsApp
-                    final whatsappUrl = 'https://wa.me/$formattedPhone?text=${Uri.encodeComponent(message)}';
+                    final whatsappUrl =
+                        'https://wa.me/$formattedPhone?text=${Uri.encodeComponent(message)}';
 
                     // Abrir WhatsApp
                     if (!context.mounted) return;
@@ -350,6 +357,26 @@ Total: ${totalAmount.toStringAsFixed(2)}€
     );
   }
 
+  String _getInitial(dynamic name) {
+    if (name == null || name.toString().isEmpty) return '?';
+    return name.toString()[0].toUpperCase();
+  }
+
+  String _getFullName(Map<String, dynamic> partner) {
+    final name = partner['name']?.toString() ?? '';
+    final lastname = partner['lastname']?.toString() ?? '';
+    if (name.isEmpty && lastname.isEmpty) return 'Sin nombre';
+    return '$name $lastname'.trim();
+  }
+
+  String _getEmail(Map<String, dynamic> partner) {
+    return partner['email']?.toString() ?? 'Sin email';
+  }
+
+  String _getPhone(Map<String, dynamic> partner) {
+    return partner['phone']?.toString() ?? 'Sin teléfono';
+  }
+
   @override
   Widget build(BuildContext context) {
     final penaltiesAsync = ref.watch(penaltiesProvider);
@@ -373,10 +400,7 @@ Total: ${totalAmount.toStringAsFixed(2)}€
                     radius: 40,
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     child: Text(
-                      widget.partner['name'] != null &&
-                              widget.partner['name'].isNotEmpty
-                          ? widget.partner['name'][0].toUpperCase()
-                          : '',
+                      _getInitial(widget.partner['name']),
                       style: const TextStyle(fontSize: 36, color: Colors.white),
                     ),
                   ),
@@ -384,7 +408,7 @@ Total: ${totalAmount.toStringAsFixed(2)}€
                   ListTile(
                     leading: const Icon(Icons.person, color: Colors.blue),
                     title: Text(
-                      '${widget.partner['name']} ${widget.partner['lastname']}',
+                      _getFullName(widget.partner),
                       style: const TextStyle(
                           fontSize: 22, fontWeight: FontWeight.bold),
                     ),
@@ -393,14 +417,14 @@ Total: ${totalAmount.toStringAsFixed(2)}€
                   ListTile(
                     leading: const Icon(Icons.email, color: Colors.blue),
                     title: Text(
-                      widget.partner['email'] ?? '',
+                      _getEmail(widget.partner),
                       style: const TextStyle(fontSize: 18),
                     ),
                   ),
                   ListTile(
                     leading: const Icon(Icons.phone, color: Colors.blue),
                     title: Text(
-                      widget.partner['phone'] ?? '',
+                      _getPhone(widget.partner),
                       style: const TextStyle(fontSize: 18),
                     ),
                   ),
