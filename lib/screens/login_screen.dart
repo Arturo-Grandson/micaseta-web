@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:micaseta_web/services/auth_service.dart';
+import 'package:micaseta_web/models/booth.dart';
 import 'package:micaseta_web/utils/app_theme.dart';
 import 'package:micaseta_web/widgets/app_widgets.dart';
+import 'package:micaseta_web/exceptions/auth_exceptions.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +23,8 @@ class _LoginScreenState extends State<LoginScreen>
   bool _obscurePassword = true;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  List<Booth> _booths = [];
+  Booth? _selectedBooth;
 
   @override
   void initState() {
@@ -49,29 +54,65 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = true);
 
     try {
-      print('Intentando iniciar sesión...');
+      // Intentar login con o sin boothId
       await _authService.login(
         _emailController.text,
         _passwordController.text,
+        boothId: _selectedBooth?.id,
       );
-      print('Inicio de sesión exitoso');
 
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/home');
-    } catch (e) {
-      print('Error durante el inicio de sesión: $e');
+    } on UnauthorizedException catch (e) {
       if (!mounted) return;
 
-      String errorMessage = 'Error al intentar iniciar sesión';
+      print('Booths recibidos: ${e.booths}');
+      setState(() {
+        _isLoading = false;
+        if (e.booths != null && e.booths!.isNotEmpty) {
+          try {
+            _booths = e.booths!.map((b) => Booth.fromJson(b)).toList();
+            print('Booths convertidos: $_booths');
+            print('Número de casetas: ${_booths.length}');
+          } catch (error) {
+            print('Error al convertir casetas: $error');
+            print('Datos de casetas recibidos: ${e.booths}');
+          }
+        } else {
+          print('No hay casetas disponibles o la lista está vacía');
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor:
+              e.booths != null ? AppTheme.primaryColor : AppTheme.errorColor,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+          ),
+        ),
+      );
+      return;
+    } catch (e) {
+      if (!mounted) return;
+
+      String errorMessage;
       print('Error detallado: $e');
 
       if (e.toString().contains('Failed to fetch')) {
         errorMessage =
-            'No se puede conectar con el servidor (http://127.0.0.1:3000). Verifica que el servidor esté en ejecución y accesible.';
+            'No se puede conectar con el servidor. Verifica que el servidor esté en ejecución y accesible.';
       } else if (e.toString().contains('timeout')) {
         errorMessage =
             'Tiempo de espera agotado. El servidor está tardando demasiado en responder.';
+      } else {
+        errorMessage = e.toString().replaceAll('Exception: ', '');
       }
+
+      setState(() => _isLoading = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -84,10 +125,6 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
     }
   }
 
@@ -106,29 +143,24 @@ class _LoginScreenState extends State<LoginScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo y título
-                    Image.asset(
-                      'images/logo.png',
-                      height: 120,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        Icons.storefront,
-                        size: 80,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: AppTheme.spacingL),
+                    // Título
                     Text(
                       'Mi Caseta',
-                      style: Theme.of(context).textTheme.headlineLarge,
+                      style:
+                          Theme.of(context).textTheme.headlineLarge?.copyWith(
+                                color: AppTheme.primaryColor,
+                                fontSize: 48,
+                                fontWeight: FontWeight.w300,
+                              ),
                     ),
                     const SizedBox(height: AppTheme.spacingS),
                     Text(
                       'Gestiona tu caseta de feria',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.textSecondaryColor,
+                            color: Colors.grey[600],
                           ),
                     ),
-                    const SizedBox(height: AppTheme.spacingXL),
+                    const SizedBox(height: AppTheme.spacingL),
 
                     // Campo de email
                     AppTextField(
@@ -173,15 +205,72 @@ class _LoginScreenState extends State<LoginScreen>
                         return null;
                       },
                     ),
-                    const SizedBox(height: AppTheme.spacingXL),
+                    const SizedBox(height: AppTheme.spacingL),
+
+                    // Selector de caseta
+                    if (_booths.isNotEmpty) ...[
+                      Text(
+                        'Selecciona una caseta',
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: AppTheme.spacingM),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: DropdownButton<Booth>(
+                          hint: const Text('Selecciona una caseta'),
+                          value: _selectedBooth,
+                          onChanged: (Booth? booth) {
+                            setState(() {
+                              _selectedBooth = booth;
+                            });
+                          },
+                          items: _booths.map((booth) {
+                            return DropdownMenuItem(
+                              value: booth,
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.store_outlined),
+                                  const SizedBox(width: 8),
+                                  Text(booth.name),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          isExpanded: true,
+                          underline: const SizedBox(),
+                          icon: const Icon(Icons.arrow_drop_down),
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppTheme.spacingXL),
+                    ],
 
                     // Botón de login
                     AppButton(
-                      text: 'Iniciar sesión',
+                      text: _booths.isEmpty
+                          ? 'Continuar'
+                          : _selectedBooth == null
+                              ? 'Selecciona una caseta'
+                              : 'Iniciar sesión',
                       onPressed: _login,
                       isLoading: _isLoading,
                       width: double.infinity,
-                      icon: Icons.login,
+                      icon: _booths.isEmpty
+                          ? Icons.arrow_forward
+                          : _selectedBooth == null
+                              ? Icons.store
+                              : Icons.login,
                     ),
                   ],
                 ),

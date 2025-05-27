@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:micaseta_web/exceptions/auth_exceptions.dart';
 
 class AuthService {
   // En desarrollo, asegúrate de usar la URL correcta
@@ -10,7 +11,8 @@ class AuthService {
   static const String _userKey = 'user';
   static const String _boothIdKey = 'boothId';
 
-  Future<Map<String, dynamic>> login(String email, String password) async {
+  Future<Map<String, dynamic>> login(String email, String password,
+      {int? boothId}) async {
     try {
       print('Iniciando solicitud de login a: $baseUrl/auth/login');
       final client = http.Client();
@@ -27,6 +29,7 @@ class AuthService {
         body: jsonEncode({
           'email': email,
           'password': password,
+          if (boothId != null) 'boothId': boothId,
         }),
       )
           .timeout(
@@ -37,24 +40,44 @@ class AuthService {
         },
       );
 
+      final responseData = jsonDecode(response.body);
+
+      print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 401) {
+        final errorData = jsonDecode(response.body);
+        print('Error data completa: $errorData');
+
+        // Verificar si hay casetas en la respuesta
+        if (errorData is Map<String, dynamic>) {
+          throw UnauthorizedException(
+            message: errorData['message'] ??
+                'Por favor, selecciona una caseta para continuar',
+            booths: (errorData['booths'] as List<dynamic>?)
+                    ?.map((b) => b as Map<String, dynamic>)
+                    .toList() ??
+                [],
+          );
+        }
+      }
+
       if (response.statusCode == 201 || response.statusCode == 200) {
-        final data = jsonDecode(response.body);
         await _saveSessionData(
-          data['access_token'],
-          data['refresh_token'],
-          data['user'],
-          data['user']['boothId'],
+          responseData['access_token'],
+          responseData['refresh_token'],
+          responseData['user'],
+          responseData['user']['boothId'],
         );
         return {
-          'token': data['access_token'],
-          'refresh_token': data['refresh_token'],
-          'user': data['user'],
-          'boothId': data['user']['boothId'],
+          'token': responseData['access_token'],
+          'refresh_token': responseData['refresh_token'],
+          'user': responseData['user'],
+          'boothId': responseData['user']['boothId'],
         };
       } else {
-        final error = jsonDecode(response.body);
-        throw Exception(
-            error['message'] ?? 'Error en el login: ${response.statusCode}');
+        throw Exception(responseData['message'] ??
+            'Error en el login: ${response.statusCode}');
       }
     } catch (e) {
       if (e is Exception) {
