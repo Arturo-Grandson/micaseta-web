@@ -63,17 +63,20 @@ class AuthService {
       }
 
       if (response.statusCode == 201 || response.statusCode == 200) {
+        // Usamos el boothId que el usuario seleccionó, no el que viene por defecto
+        final selectedBoothId = boothId ?? responseData['user']['boothId'];
+
         await _saveSessionData(
           responseData['access_token'],
           responseData['refresh_token'],
           responseData['user'],
-          responseData['user']['boothId'],
+          selectedBoothId,
         );
         return {
           'token': responseData['access_token'],
           'refresh_token': responseData['refresh_token'],
           'user': responseData['user'],
-          'boothId': responseData['user']['boothId'],
+          'boothId': selectedBoothId,
         };
       } else {
         throw Exception(responseData['message'] ??

@@ -225,10 +225,7 @@ class ProductsScreen extends ConsumerWidget {
                 await notifier.addProduct({
                   'name': nameController.text,
                   'type': selectedProductType,
-                  'price': {
-                    'price': price,
-                    'year': DateTime.now().year,
-                  },
+                  'price': price,
                 });
                 if (!context.mounted) return;
                 Navigator.of(context).pop();

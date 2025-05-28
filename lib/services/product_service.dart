@@ -3,10 +3,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/product.dart';
 
 class ProductService extends BaseApiService {
-  Future<List<Product>> getProducts(int boothId) async {
+  Future<List<Product>> getProducts([int? boothId]) async {
     try {
-      final response = await httpClient.get('product/booth/$boothId');
-      return parseResponseList(response, (json) => Product.fromJson(json));
+      // Si no se proporciona boothId, obtenerlo de SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final selectedBoothId = boothId ?? prefs.getInt('boothId');
+
+      if (selectedBoothId == null) {
+        return []; // Retornar lista vacía si no hay caseta seleccionada
+      }
+
+      print('Obteniendo productos para la caseta: $selectedBoothId');
+      final response = await httpClient.get('product/booth/$selectedBoothId');
+
+      print('Estado de la respuesta: ${response.statusCode}');
+      print('Respuesta: ${response.body}');
+
+      // Parsear respuesta y manejar caso vacío
+      final products =
+          await parseResponseList(response, (json) => Product.fromJson(json));
+      print('Productos parseados: ${products.length}');
+      return products;
     } catch (e) {
       throw Exception('Error al cargar los productos: $e');
     }
@@ -27,14 +44,20 @@ class ProductService extends BaseApiService {
       final boothId = prefs.getInt('boothId');
       if (boothId == null) throw Exception('No hay boothId asociado');
 
+      print('Enviando producto con datos: $productData');
       final body = {
-        ...productData,
+        'name': productData['name'],
+        'type': productData['type'],
         'boothId': boothId,
-        'price': {
-          'price': productData['price'],
-          'year': DateTime.now().year,
-        },
       };
+
+      // Añadir precio solo si se proporciona
+      if (productData['price'] != null) {
+        // Asegurarnos de que el precio es un número
+        final price = double.parse(productData['price'].toString());
+        body['price'] = {'price': price};
+      }
+      print('Body formateado: $body');
 
       final response = await httpClient.post('product', body: body);
       return response.statusCode == 200 || response.statusCode == 201;
@@ -51,7 +74,6 @@ class ProductService extends BaseApiService {
           'name': name,
           'price': {
             'price': price,
-            'year': DateTime.now().year,
           },
         },
       );

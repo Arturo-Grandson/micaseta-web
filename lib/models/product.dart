@@ -39,7 +39,8 @@ class Product {
       'name': name,
       'type': type,
       'price': {
-        'price': price,
+        'price': double.parse(price
+            .toStringAsFixed(2)), // Aseguramos 2 decimales y formato numérico
       },
     };
   }

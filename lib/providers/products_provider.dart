@@ -64,9 +64,12 @@ class ProductsNotifier extends StateNotifier<AsyncValue<ProductsState>> {
         throw Exception('No hay boothId asociado al usuario');
       }
 
+      print('Cargando productos para la caseta: $boothId');
       final products = await _productService.getProducts(boothId);
+      print('Productos obtenidos: ${products.length}');
       state = AsyncValue.data(ProductsState(products: products));
     } catch (e, stack) {
+      print('Error al cargar productos: $e');
       state = AsyncValue.error(e, stack);
     }
   }
@@ -124,4 +127,4 @@ class ProductsNotifier extends StateNotifier<AsyncValue<ProductsState>> {
 final productsProvider =
     StateNotifierProvider<ProductsNotifier, AsyncValue<ProductsState>>((ref) {
   return ProductsNotifier();
-}); 
+});
