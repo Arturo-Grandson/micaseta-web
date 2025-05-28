@@ -202,41 +202,39 @@ class _CommonExpenseScreenState extends State<CommonExpenseScreen> {
         onPressed: _showAddCommonExpenseDialog,
         child: const Icon(Icons.add),
       ),
-      body: Expanded(
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: _commonExpense.length,
-          itemBuilder: (context, index) {
-            final expense = _commonExpense[index];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: const Icon(Icons.monetization_on, color: Colors.white),
-                ),
-                title: Text(expense.description),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _formatPrice(expense.totalAmount),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      tooltip: 'Editar',
-                      onPressed: () => {},
-                    ),
-                  ],
-                ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _commonExpense.length,
+        itemBuilder: (context, index) {
+          final expense = _commonExpense[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                child: const Icon(Icons.monetization_on, color: Colors.white),
               ),
-            );
-          },
-        ),
+              title: Text(expense.description),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _formatPrice(expense.totalAmount),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Editar',
+                    onPressed: () => {},
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

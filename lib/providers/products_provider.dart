@@ -60,13 +60,26 @@ class ProductsNotifier extends StateNotifier<AsyncValue<ProductsState>> {
       final prefs = await SharedPreferences.getInstance();
       final boothId = prefs.getInt('boothId');
 
+      print('BoothId obtenido de SharedPreferences: $boothId');
+
       if (boothId == null) {
         throw Exception('No hay boothId asociado al usuario');
+      }
+
+      // Asegurarnos de que boothId es un número válido
+      if (boothId <= 0) {
+        throw Exception('BoothId inválido: $boothId');
       }
 
       print('Cargando productos para la caseta: $boothId');
       final products = await _productService.getProducts(boothId);
       print('Productos obtenidos: ${products.length}');
+
+      // Verificar que los productos pertenecen a la caseta correcta
+      products.forEach((product) {
+        print('Producto: ${product.name}, ID: ${product.id}');
+      });
+
       state = AsyncValue.data(ProductsState(products: products));
     } catch (e, stack) {
       print('Error al cargar productos: $e');

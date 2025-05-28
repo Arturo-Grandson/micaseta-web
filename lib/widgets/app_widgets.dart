@@ -3,7 +3,7 @@ import '../utils/app_theme.dart';
 
 class AppButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool isLoading;
   final bool isPrimary;
   final IconData? icon;
@@ -12,7 +12,7 @@ class AppButton extends StatelessWidget {
   const AppButton({
     Key? key,
     required this.text,
-    required this.onPressed,
+    this.onPressed,
     this.isLoading = false,
     this.isPrimary = true,
     this.icon,
@@ -48,7 +48,7 @@ class AppButton extends StatelessWidget {
       width: width,
       child: isPrimary
           ? ElevatedButton(
-              onPressed: isLoading ? null : onPressed,
+              onPressed: (isLoading || onPressed == null) ? null : onPressed,
               child: buttonChild,
             )
           : OutlinedButton(

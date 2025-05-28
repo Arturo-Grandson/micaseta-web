@@ -11,15 +11,10 @@ class AuthService {
   static const String _userKey = 'user';
   static const String _boothIdKey = 'boothId';
 
-  Future<Map<String, dynamic>> login(String email, String password,
-      {int? boothId}) async {
+  Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      print('Iniciando solicitud de login a: $baseUrl/auth/login');
-      final client = http.Client();
       final uri = Uri.parse('$baseUrl/auth/login');
-      print('URI construida: $uri');
-
-      final response = await client
+      final response = await http
           .post(
         uri,
         headers: {
@@ -29,7 +24,6 @@ class AuthService {
         body: jsonEncode({
           'email': email,
           'password': password,
-          if (boothId != null) 'boothId': boothId,
         }),
       )
           .timeout(
@@ -42,51 +36,188 @@ class AuthService {
 
       final responseData = jsonDecode(response.body);
 
-      print('Response status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      // Guardar los tokens si están disponibles, independientemente del código de estado
+      if (responseData['access_token'] != null &&
+          responseData['refresh_token'] != null) {
+        print('Guardando tokens de la respuesta del login');
+        await _saveSessionData(
+          responseData['access_token'],
+          responseData['refresh_token'],
+          responseData['user'] ?? {},
+          null, // No guardamos boothId en el login
+        );
+
+        // Verificar que se guardaron correctamente
+        final prefs = await SharedPreferences.getInstance();
+        final savedToken = prefs.getString(_tokenKey);
+        final savedRefreshToken = prefs.getString(_refreshTokenKey);
+        if (savedToken == null || savedRefreshToken == null) {
+          throw Exception('Error al guardar los tokens de autenticación');
+        }
+      }
 
       if (response.statusCode == 401) {
-        final errorData = jsonDecode(response.body);
-        print('Error data completa: $errorData');
-
-        // Verificar si hay casetas en la respuesta
-        if (errorData is Map<String, dynamic>) {
+        if (responseData is Map<String, dynamic> &&
+            responseData.containsKey('booths') &&
+            responseData['booths'] is List) {
+          // Si la respuesta 401 contiene una lista de casetas, es el flujo esperado
           throw UnauthorizedException(
-            message: errorData['message'] ??
+            message: responseData['message'] ??
                 'Por favor, selecciona una caseta para continuar',
-            booths: (errorData['booths'] as List<dynamic>?)
-                    ?.map((b) => b as Map<String, dynamic>)
-                    .toList() ??
-                [],
+            booths: List<Map<String, dynamic>>.from(responseData['booths']),
+          );
+        } else {
+          // Si no hay casetas, son credenciales inválidas
+          throw UnauthorizedException(
+            message: 'Credenciales inválidas',
+            booths: [],
           );
         }
       }
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        // Usamos el boothId que el usuario seleccionó, no el que viene por defecto
-        final selectedBoothId = boothId ?? responseData['user']['boothId'];
-
-        await _saveSessionData(
-          responseData['access_token'],
-          responseData['refresh_token'],
-          responseData['user'],
-          selectedBoothId,
-        );
         return {
           'token': responseData['access_token'],
           'refresh_token': responseData['refresh_token'],
           'user': responseData['user'],
-          'boothId': selectedBoothId,
+          'booths': responseData['booths'] ?? [],
         };
       } else {
         throw Exception(responseData['message'] ??
             'Error en el login: ${response.statusCode}');
       }
     } catch (e) {
-      if (e is Exception) {
+      print('Error en login: $e');
+      if (e is UnauthorizedException) {
         throw e;
       }
       throw Exception('Error al conectar con el servidor: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> selectBooth(int boothId) async {
+    try {
+      if (boothId <= 0) {
+        throw Exception('ID de caseta inválido');
+      }
+
+      final token = await getToken(forceRefresh: true);
+      if (token == null) {
+        throw UnauthorizedException(
+          message: 'No hay sesión activa',
+          booths: [],
+        );
+      }
+
+      final uri = Uri.parse('$baseUrl/users/booth/select');
+      final response = await http
+          .post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'boothId': boothId,
+        }),
+      )
+          .timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception(
+              'Tiempo de espera agotado al intentar conectar con el servidor');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        // Verificar que el token y el boothId están presentes en la respuesta
+        final newToken = responseData['access_token'] ?? token;
+        if (newToken == null || newToken.isEmpty) {
+          throw Exception('Token inválido en la respuesta del servidor');
+        }
+
+        // Guardar la nueva sesión con el token actualizado
+        await _saveSessionData(
+          newToken,
+          await getRefreshToken() ?? '',
+          await getUser() ?? {},
+          boothId,
+        );
+
+        // Verificar que se guardó correctamente
+        final prefs = await SharedPreferences.getInstance();
+        final savedBoothId = prefs.getInt(_boothIdKey);
+        if (savedBoothId != boothId) {
+          throw Exception('Error al guardar la caseta seleccionada');
+        }
+
+        print('Caseta $boothId seleccionada exitosamente');
+        return {'boothId': boothId};
+      } else if (response.statusCode == 401) {
+        // Intentar refrescar el token una vez más
+        final newToken = await getToken(forceRefresh: true);
+        if (newToken == null) {
+          throw UnauthorizedException(
+            message: 'Sesión expirada',
+            booths: [],
+          );
+        }
+
+        // Reintentar con el nuevo token
+        final retryResponse = await http.post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $newToken',
+          },
+          body: jsonEncode({
+            'boothId': boothId,
+          }),
+        );
+
+        if (retryResponse.statusCode == 200) {
+          final responseData = jsonDecode(retryResponse.body);
+          final finalToken = responseData['access_token'] ?? newToken;
+
+          await _saveSessionData(
+            finalToken,
+            await getRefreshToken() ?? '',
+            await getUser() ?? {},
+            boothId,
+          );
+
+          // Verificar que se guardó correctamente
+          final prefs = await SharedPreferences.getInstance();
+          final savedBoothId = prefs.getInt(_boothIdKey);
+          if (savedBoothId != boothId) {
+            throw Exception('Error al guardar la caseta seleccionada');
+          }
+
+          print(
+              'Caseta $boothId seleccionada exitosamente después de refrescar token');
+          return {'boothId': boothId};
+        }
+
+        throw UnauthorizedException(
+          message: 'Error de autenticación',
+          booths: [],
+        );
+      } else {
+        final responseData = jsonDecode(response.body);
+        String errorMessage =
+            responseData['message'] ?? 'Error al seleccionar la caseta';
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      print('Error en selectBooth: $e');
+      if (e is UnauthorizedException) {
+        throw e;
+      }
+      throw Exception('Error al seleccionar la caseta: $e');
     }
   }
 
@@ -114,9 +245,33 @@ class AuthService {
     await prefs.remove(_boothIdKey);
   }
 
-  Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
+  Future<String?> getToken({bool forceRefresh = false}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString(_tokenKey);
+
+      if (token == null && !forceRefresh) {
+        print('No hay token almacenado');
+        return null;
+      }
+
+      if (forceRefresh) {
+        print('Intentando refrescar token...');
+        final refreshSuccess = await refreshAccessToken();
+        if (refreshSuccess) {
+          token = prefs.getString(_tokenKey);
+          print('Token refrescado exitosamente');
+        } else {
+          print('No se pudo refrescar el token');
+          return null;
+        }
+      }
+
+      return token;
+    } catch (e) {
+      print('Error en getToken: $e');
+      return null;
+    }
   }
 
   Future<String?> getRefreshToken() async {
@@ -141,30 +296,131 @@ class AuthService {
   Future<bool> refreshAccessToken() async {
     try {
       final refreshToken = await getRefreshToken();
-      if (refreshToken == null) {
+      if (refreshToken == null || refreshToken.isEmpty) {
+        print('No hay refresh token disponible');
         return false;
       }
 
-      final response = await http.post(
+      print('Intentando refrescar token con refresh token existente');
+      final response = await http
+          .post(
         Uri.parse('$baseUrl/auth/refresh'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: jsonEncode({
           'refreshToken': refreshToken,
         }),
+      )
+          .timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception(
+              'Tiempo de espera agotado al intentar refrescar el token');
+        },
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_tokenKey, data['access_token']);
+
+        // Validar que los tokens están presentes
+        if (data['access_token'] == null || data['access_token'].isEmpty) {
+          print('Error: El servidor no devolvió un token válido');
+          return false;
+        }
+
+        // Mantener el refresh token anterior si no se proporciona uno nuevo
+        final newRefreshToken = data['refresh_token'] ?? refreshToken;
+
+        // Guardar los nuevos tokens
+        await _saveSessionData(
+          data['access_token'],
+          newRefreshToken,
+          await getUser() ?? {},
+          await getBoothId(),
+        );
+
+        print('Token refrescado y guardado exitosamente');
         return true;
       } else {
-        // Si el refresh token ha expirado o es inválido, cerrar sesión
-        await logout();
+        final responseData = jsonDecode(response.body);
+        print(
+            'Error al refrescar token: ${responseData['message'] ?? 'Error desconocido'}');
         return false;
       }
     } catch (e) {
+      print('Error en refreshAccessToken: $e');
       return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAvailableBooths() async {
+    try {
+      final token = await getToken(forceRefresh: true);
+      if (token == null) {
+        throw UnauthorizedException(
+          message: 'No hay sesión activa',
+          booths: [],
+        );
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/me/booths'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception(
+              'Tiempo de espera agotado al intentar conectar con el servidor');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((booth) => booth as Map<String, dynamic>).toList();
+      } else if (response.statusCode == 401) {
+        // Intentar refrescar el token una vez más
+        final newToken = await getToken(forceRefresh: true);
+        if (newToken == null) {
+          throw UnauthorizedException(
+            message: 'Sesión expirada',
+            booths: [],
+          );
+        }
+
+        // Reintentar con el nuevo token
+        final retryResponse = await http.get(
+          Uri.parse('$baseUrl/users/me/booths'),
+          headers: {
+            'Authorization': 'Bearer $newToken',
+            'Accept': 'application/json',
+          },
+        );
+
+        if (retryResponse.statusCode == 200) {
+          final List<dynamic> data = jsonDecode(retryResponse.body);
+          return data.map((booth) => booth as Map<String, dynamic>).toList();
+        }
+
+        throw UnauthorizedException(
+          message: 'Error de autenticación',
+          booths: [],
+        );
+      } else {
+        final responseData = jsonDecode(response.body);
+        throw Exception(responseData['message'] ??
+            'Error al obtener las casetas del usuario');
+      }
+    } catch (e) {
+      print('Error en getAvailableBooths: $e');
+      if (e is UnauthorizedException) {
+        throw e;
+      }
+      throw Exception('Error al conectar con el servidor: $e');
     }
   }
 }

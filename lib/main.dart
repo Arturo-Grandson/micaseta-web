@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:micaseta_web/providers/theme_provider.dart' as theme_provider;
+import 'package:micaseta_web/screens/booth_selection_screen.dart';
 import 'package:micaseta_web/screens/home_screen.dart';
 import 'package:micaseta_web/screens/login_screen.dart';
 import 'package:micaseta_web/screens/settings_screen.dart';
@@ -34,10 +35,11 @@ void main() async {
 
   final authService = AuthService();
   final isLoggedIn = await authService.isLoggedIn();
+  final hasBoothSelected = isLoggedIn && await authService.getBoothId() != null;
 
   runApp(
     ProviderScope(
-      child: MyApp(initialRoute: isLoggedIn ? '/home' : '/login'),
+      child: MyApp(initialRoute: hasBoothSelected ? '/home' : '/login'),
     ),
   );
 }
@@ -74,6 +76,19 @@ class MyApp extends StatelessWidget {
           darkTheme: AppTheme.darkTheme(),
           themeMode: actualThemeMode,
           initialRoute: initialRoute,
+          onGenerateRoute: (settings) {
+            if (settings.name == '/booth-selection') {
+              final args = settings.arguments as Map<String, dynamic>?;
+              final dynamicList = args?['booths'] as List<dynamic>? ?? [];
+              final booths = dynamicList
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList();
+              return MaterialPageRoute(
+                builder: (context) => BoothSelectionScreen(booths: booths),
+              );
+            }
+            return null;
+          },
           routes: {
             '/login': (context) => const LoginScreen(),
             '/home': (context) => const HomeScreen(),

@@ -39,8 +39,9 @@ class AuthHttpClient {
           202);
     }
 
-    // Obtener el token actual
-    final token = await _authService.getToken();
+    // Obtener el token actual, forzando refresh si necesario
+    final token = await _authService.getToken(
+        forceRefresh: method.toUpperCase() != 'GET');
 
     // Preparar headers con autenticación si el token existe
     final requestHeaders = {
