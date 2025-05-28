@@ -60,6 +60,26 @@ class AuthService {
         if (responseData is Map<String, dynamic> &&
             responseData.containsKey('booths') &&
             responseData['booths'] is List) {
+          // Guardar los tokens incluso cuando se requiere selección de caseta
+          if (responseData['access_token'] != null &&
+              responseData['refresh_token'] != null) {
+            print('Guardando tokens de la respuesta 401');
+            await _saveSessionData(
+              responseData['access_token'],
+              responseData['refresh_token'],
+              responseData['user'] ?? {},
+              null,
+            );
+
+            // Verificar que se guardaron correctamente
+            final prefs = await SharedPreferences.getInstance();
+            final savedToken = prefs.getString(_tokenKey);
+            final savedRefreshToken = prefs.getString(_refreshTokenKey);
+
+            print('Token guardado: ${savedToken != null}');
+            print('Refresh token guardado: ${savedRefreshToken != null}');
+          }
+
           // Si la respuesta 401 contiene una lista de casetas, es el flujo esperado
           throw UnauthorizedException(
             message: responseData['message'] ??
@@ -101,14 +121,34 @@ class AuthService {
         throw Exception('ID de caseta inválido');
       }
 
-      final token = await getToken(forceRefresh: true);
+      // Intentar obtener los tokens guardados
+      final prefs = await SharedPreferences.getInstance();
+      final savedToken = prefs.getString(_tokenKey);
+      final savedRefreshToken = prefs.getString(_refreshTokenKey);
+
+      print('Token guardado: ${savedToken != null}');
+      print('Refresh token guardado: ${savedRefreshToken != null}');
+
+      String? token;
+      if (savedToken != null) {
+        token = savedToken;
+      } else if (savedRefreshToken != null) {
+        // Si no hay token pero hay refresh token, intentar refrescar
+        print('No hay token, pero hay refresh token. Intentando refrescar...');
+        final refreshResult = await refreshAccessToken();
+        if (refreshResult) {
+          token = await getToken(forceRefresh: false);
+        }
+      }
+
       if (token == null) {
         throw UnauthorizedException(
-          message: 'No hay sesión activa',
+          message: 'No hay sesión activa o tokens válidos',
           booths: [],
         );
       }
 
+      print('Enviando solicitud para seleccionar caseta $boothId');
       final uri = Uri.parse('$baseUrl/users/booth/select');
       final response = await http
           .post(
@@ -130,11 +170,15 @@ class AuthService {
         },
       );
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
+      final responseData = jsonDecode(response.body);
 
-        // Verificar que el token y el boothId están presentes en la respuesta
-        final newToken = responseData['access_token'] ?? token;
+      // Aceptar tanto 200 como 201 como respuestas exitosas
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (!responseData['success']) {
+          throw Exception(responseData['message'] ?? 'Error desconocido');
+        }
+
+        final newToken = responseData['data']['access_token'] ?? token;
         if (newToken == null || newToken.isEmpty) {
           throw Exception('Token inválido en la respuesta del servidor');
         }
@@ -143,27 +187,16 @@ class AuthService {
         await _saveSessionData(
           newToken,
           await getRefreshToken() ?? '',
-          await getUser() ?? {},
+          responseData['data']['user'] ?? await getUser() ?? {},
           boothId,
         );
 
-        // Verificar que se guardó correctamente
-        final prefs = await SharedPreferences.getInstance();
-        final savedBoothId = prefs.getInt(_boothIdKey);
-        if (savedBoothId != boothId) {
-          throw Exception('Error al guardar la caseta seleccionada');
-        }
-
         print('Caseta $boothId seleccionada exitosamente');
-        return {'boothId': boothId};
+        return {'boothId': boothId, 'message': responseData['message']};
       } else if (response.statusCode == 401) {
-        // Intentar refrescar el token una vez más
         final newToken = await getToken(forceRefresh: true);
         if (newToken == null) {
-          throw UnauthorizedException(
-            message: 'Sesión expirada',
-            booths: [],
-          );
+          throw UnauthorizedException(message: 'Sesión expirada', booths: []);
         }
 
         // Reintentar con el nuevo token
@@ -174,49 +207,37 @@ class AuthService {
             'Accept': 'application/json',
             'Authorization': 'Bearer $newToken',
           },
-          body: jsonEncode({
-            'boothId': boothId,
-          }),
+          body: jsonEncode({'boothId': boothId}),
         );
 
         if (retryResponse.statusCode == 200) {
-          final responseData = jsonDecode(retryResponse.body);
-          final finalToken = responseData['access_token'] ?? newToken;
+          final retryData = jsonDecode(retryResponse.body);
+          if (!retryData['success']) {
+            throw Exception(retryData['message'] ?? 'Error desconocido');
+          }
 
+          final finalToken = retryData['data']['access_token'] ?? newToken;
           await _saveSessionData(
             finalToken,
             await getRefreshToken() ?? '',
-            await getUser() ?? {},
+            retryData['data']['user'] ?? await getUser() ?? {},
             boothId,
           );
 
-          // Verificar que se guardó correctamente
-          final prefs = await SharedPreferences.getInstance();
-          final savedBoothId = prefs.getInt(_boothIdKey);
-          if (savedBoothId != boothId) {
-            throw Exception('Error al guardar la caseta seleccionada');
-          }
-
           print(
               'Caseta $boothId seleccionada exitosamente después de refrescar token');
-          return {'boothId': boothId};
+          return {'boothId': boothId, 'message': retryData['message']};
         }
 
         throw UnauthorizedException(
-          message: 'Error de autenticación',
-          booths: [],
-        );
-      } else {
-        final responseData = jsonDecode(response.body);
-        String errorMessage =
-            responseData['message'] ?? 'Error al seleccionar la caseta';
-        throw Exception(errorMessage);
+            message: 'Error de autenticación', booths: []);
       }
+
+      throw Exception(
+          responseData['message'] ?? 'Error al seleccionar la caseta');
     } catch (e) {
       print('Error en selectBooth: $e');
-      if (e is UnauthorizedException) {
-        throw e;
-      }
+      if (e is UnauthorizedException) rethrow;
       throw Exception('Error al seleccionar la caseta: $e');
     }
   }

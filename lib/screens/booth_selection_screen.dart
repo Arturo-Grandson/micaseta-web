@@ -46,19 +46,25 @@ class _BoothSelectionScreenState extends State<BoothSelectionScreen> {
 
       if (!mounted) return;
 
-      if (result.containsKey('boothId') && result['boothId'] != null) {
-        // Asegurarnos de que el boothId se guardó correctamente antes de navegar
-        final prefs = await SharedPreferences.getInstance();
-        final savedBoothId = prefs.getInt('boothId');
+      print('Resultado de selección de caseta: $result');
 
-        if (savedBoothId == _selectedBooth!.id) {
-          print(
-              'Navegando a home después de seleccionar caseta ${_selectedBooth!.id}');
-          Navigator.of(context)
-              .pushNamedAndRemoveUntil('/home', (route) => false);
-        } else {
-          throw Exception('Error al guardar la caseta seleccionada');
+      // Si tenemos un boothId en la respuesta, consideramos que fue exitoso
+      if (result.containsKey('boothId')) {
+        // Mostrar mensaje de éxito si está presente
+        if (result.containsKey('message')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message']),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
+
+        print(
+            'Navegando a home después de seleccionar caseta ${_selectedBooth!.id}');
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/home', (route) => false);
       } else {
         throw Exception(
             'La respuesta del servidor no contiene el ID de la caseta');
